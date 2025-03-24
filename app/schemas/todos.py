@@ -8,7 +8,7 @@ class TodoCreate(BaseModel):
 
 
 class TodoItem(TodoCreate):
-    id: int
+    id: str
 
     class Config:
         orm_mode = True
