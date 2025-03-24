@@ -1,20 +1,43 @@
 version: "3.8"
 
 services:
-  db:
+  db-primary:
     image: postgres:13
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: todo_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
-    ports:
-      - "5435:5432"
+    - primary_data:/var/lib/postgresql/data
+    - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     networks:
       - todos_network
 
+  db-replica:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: todo_db
+      POSTGRES_HOST_AUTH_METHOD: trust
+    restart: on-failure
+    volumes:
+      - replica_data:/var/lib/postgresql/data
+    depends_on:
+      - db-primary
+    user: postgres
+    command: >
+      bash -c "
+      sleep 5 &&
+      rm -rf /var/lib/postgresql/data/* &&
+      pg_basebackup -h db-primary -D /var/lib/postgresql/data -U postgres -P -Fp -Xs -R &&
+      chmod 0700 /var/lib/postgresql/data &&
+      postgres
+      "
+    networks:
+      - todos_network
 
   app:
     build: ./app
@@ -23,15 +46,17 @@ services:
     ports:
       - "8008:8000"
     depends_on:
-      - db
+      - db-primary
+      - db-replica
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/todo_db
+      PRIMARY_DB_URL: postgresql://postgres:password@db-primary:5432/todo_db
+      REPLICA_DB_URL: postgresql://postgres:password@db-replica:5432/todo_db
     networks:
       - todos_network
 
 networks:
   todos_network:
 
-
 volumes:
-  postgres_data:
+  primary_data:
+  replica_data:
