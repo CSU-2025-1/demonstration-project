@@ -8,9 +8,9 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: todo_db
     volumes:
-    - primary_data:/var/lib/postgresql/data
-    - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
-    - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      - primary_data:/var/lib/postgresql/data
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     networks:
       - todos_network
