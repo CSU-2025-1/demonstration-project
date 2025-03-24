@@ -1,37 +1,79 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  db:
-    image: postgres:13
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.0
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: todo_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      ETCD_ENABLE_V2: "true"
+      ETCD_LISTEN_CLIENT_URLS: "http://0.0.0.0:2379"
+      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
     ports:
-      - "5435:5432"
+      - "2379:2379"
     networks:
       - todos_network
 
+  db-1:
+    image: registry.opensource.zalan.do/acid/spilo-15:3.0-p1
+    environment:
+      SCOPE: todo-cluster
+      ETCD_HOST: etcd:2379
+      PGPASSWORD_SUPERUSER: password
+      PGUSER_SUPERUSER: postgres
+    volumes:
+      - db1_data:/home/postgres/pgdata
+    ports:
+      - "5435:5432"
+      - "8009:8008"
+    networks:
+      - todos_network
+
+  db-2:
+    image: registry.opensource.zalan.do/acid/spilo-15:3.0-p1
+    environment:
+      SCOPE: todo-cluster
+      ETCD_HOST: etcd:2379
+      PGPASSWORD_SUPERUSER: password
+      PGUSER_SUPERUSER: postgres
+    volumes:
+      - db2_data:/home/postgres/pgdata
+    ports:
+      - "5436:5432"
+      - "8010:8008"
+    networks:
+      - todos_network
+
+
+  haproxy:
+    image: haproxy:2.8
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    restart: on-failure
+    ports:
+      - "5000:5000"
+      - "7000:7000"
+    networks:
+      - todos_network
+    depends_on:
+      - db-1
+      - db-2
 
   app:
     build: ./app
     volumes:
       - ./app:/app
+    restart: on-failure
     ports:
       - "8008:8000"
-    depends_on:
-      - db
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/todo_db
+      DATABASE_URL: postgresql://postgres:password@haproxy:5000/postgres
     networks:
       - todos_network
+    depends_on:
+      - haproxy
 
 networks:
   todos_network:
 
-
 volumes:
-  postgres_data:
+  db1_data:
+  db2_data:
