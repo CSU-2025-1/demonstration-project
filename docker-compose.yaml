@@ -56,6 +56,26 @@ services:
     depends_on:
       - db-1
       - db-2
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5675:5672"
+      - "15675:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    networks:
+      - todos_network
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    networks:
+      - todos_network
 
   app:
     build: ./app
@@ -66,10 +86,27 @@ services:
       - "8008:8000"
     environment:
       DATABASE_URL: postgresql://postgres:password@haproxy:5000/postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     networks:
       - todos_network
     depends_on:
-      - haproxy
+      rabbitmq:
+        condition: service_healthy
+      haproxy:
+        condition: service_started
+  
+  logger:
+    build: ./logger
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      MONGO_URL: mongodb://mongodb:27017
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    networks:
+      - todos_network
 
 networks:
   todos_network:
