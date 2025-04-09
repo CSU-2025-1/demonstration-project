@@ -28,16 +28,12 @@ def send_rpc_event(event_type, data):
         if corr_id == props.correlation_id:
             response["result"] = json.loads(body)
 
-    channel.basic_consume(
-        queue=callback_queue, on_message_callback=on_response, auto_ack=True
-    )
+    channel.basic_consume(queue=callback_queue, on_message_callback=on_response, auto_ack=True)
 
     channel.basic_publish(
         exchange="",
         routing_key="todos_events",
-        properties=pika.BasicProperties(
-            reply_to=callback_queue, correlation_id=corr_id
-        ),
+        properties=pika.BasicProperties(reply_to=callback_queue, correlation_id=corr_id),
         body=json.dumps({"type": event_type, "data": data}),
     )
 

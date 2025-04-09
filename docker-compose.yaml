@@ -42,7 +42,6 @@ services:
     networks:
       - todos_network
 
-
   haproxy:
     image: haproxy:2.8
     volumes:
@@ -56,7 +55,7 @@ services:
     depends_on:
       - db-1
       - db-2
-  
+
   rabbitmq:
     image: rabbitmq:3-management
     ports:
@@ -67,6 +66,15 @@ services:
       interval: 30s
       timeout: 30s
       retries: 3
+    networks:
+      - todos_network
+
+  redis:
+    image: redis:7
+    command: >
+      redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6389:6379"
     networks:
       - todos_network
 
@@ -94,7 +102,7 @@ services:
         condition: service_healthy
       haproxy:
         condition: service_started
-  
+
   logger:
     build: ./logger
     environment:
@@ -110,6 +118,7 @@ services:
 
 networks:
   todos_network:
+
 
 volumes:
   db1_data:
