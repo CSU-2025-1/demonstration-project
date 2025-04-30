@@ -1,41 +1,68 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from db.database import get_db
-from services.todos import TodosService
-from repositories.todos import TodosRepository
-from schemas.todos import TodoCreate, TodoItem
 from typing import List
 
-router = APIRouter()
+from core.auth import get_current_user, require_minimum_role
+from db.database import get_db
+from db.models import User
+from fastapi import APIRouter, Depends
+from repositories.todos import TodosRepository
+from schemas.todos import TodoCreate, TodoItem
+from services.todos import TodosService
+from sqlalchemy.orm import Session
+
+router = APIRouter(
+    prefix="/todos",
+    tags=["todos"],
+)
 
 
-def get_todos_service(db: Session = Depends(get_db)) -> TodosService:
+def get_todos_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TodosService:
     repository = TodosRepository(db)
-    return TodosService(repository)
+    return TodosService(repository, current_user)
 
 
-@router.get("/todos", response_model=List[TodoItem])
-def read_todos(service: TodosService = Depends(get_todos_service)):
+@router.get("", response_model=List[TodoItem])
+def read_todos(
+    service: TodosService = Depends(get_todos_service),
+    _: User = Depends(require_minimum_role("user")),
+):
     return service.get_all()
 
 
-@router.get("/todos/{todo_id}", response_model=TodoItem)
-def read_todo(todo_id: int, service: TodosService = Depends(get_todos_service)):
+@router.get("/{todo_id}", response_model=TodoItem)
+def read_todo(
+    todo_id: int,
+    service: TodosService = Depends(get_todos_service),
+    _: User = Depends(require_minimum_role("user")),
+):
     return service.get(todo_id)
 
 
-@router.post("/todos", response_model=TodoItem)
-def create_todo(todo: TodoCreate, service: TodosService = Depends(get_todos_service)):
+@router.post("", response_model=TodoItem)
+def create_todo(
+    todo: TodoCreate,
+    service: TodosService = Depends(get_todos_service),
+    _: User = Depends(require_minimum_role("user")),
+):
     return service.create(todo)
 
 
-@router.put("/todos/{todo_id}", response_model=TodoItem)
+@router.put("/{todo_id}", response_model=TodoItem)
 def update_todo(
-    todo_id: int, todo: TodoCreate, service: TodosService = Depends(get_todos_service)
+    todo_id: int,
+    todo: TodoCreate,
+    service: TodosService = Depends(get_todos_service),
+    _: User = Depends(require_minimum_role("user")),
 ):
     return service.update(todo_id, todo)
 
 
-@router.delete("/todos/{todo_id}", response_model=TodoItem)
-def delete_todo(todo_id: int, service: TodosService = Depends(get_todos_service)):
+@router.delete("/{todo_id}", response_model=TodoItem)
+def delete_todo(
+    todo_id: int,
+    service: TodosService = Depends(get_todos_service),
+    _: User = Depends(require_minimum_role("user")),
+):
     return service.delete(todo_id)

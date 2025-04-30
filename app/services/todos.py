@@ -1,4 +1,5 @@
 from core.producer import send_rpc_event
+from db.models import User
 from repositories.todos import TodosRepository
 from schemas.todos import TodoCreate, TodoItem
 from services.base import BaseService
@@ -8,11 +9,12 @@ CACHE_TTL = 60  # Время жизни кэша в секундах
 
 
 class TodosService(BaseService, CachingService):
-    def __init__(self, repository: TodosRepository):
+    def __init__(self, repository: TodosRepository, current_user: User):
         self._repository = repository
+        self._user = current_user
 
     def create(self, obj_in: TodoCreate) -> TodoItem:
-        new_todo = self._repository.create(obj_in)
+        new_todo = self._repository.create(obj_in, user_id=self._user.id)
         send_rpc_event("todo_created", {"id": new_todo.id, "title": new_todo.title})
 
         # Инвалидация кэша после создания новой задачи
@@ -23,9 +25,14 @@ class TodosService(BaseService, CachingService):
     def get(self, id: int) -> TodoItem:
         @self.cache_result(f"todo:{id}", ttl=CACHE_TTL)
         def fetch_todo():
-            todo = self._repository.get_by_id(id)
+            if self._user.role == "admin":
+                todo = self._repository.get_by_id(id)
+            else:
+                todo = self._repository.get_by_id(id, user_id=self._user.id)
+
             if not todo:
                 raise ValueError(f"Task with ID {id} not found")
+
             send_rpc_event("todo_requested", {"id": todo.id, "title": todo.title})
             return todo
 
@@ -34,8 +41,9 @@ class TodosService(BaseService, CachingService):
     def get_all(self):
         @self.cache_result("todos", ttl=CACHE_TTL)
         def fetch_todos():
-            todos = self._repository.get_all()
-            return todos
+            if self._user.role == "admin":
+                return self._repository.get_all()
+            return self._repository.get_all(user_id=self._user.id)
 
         return fetch_todos()
 

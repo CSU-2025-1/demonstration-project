@@ -1,8 +1,8 @@
 import json
-from typing import Optional, Callable, Any
-from core.redis_client import redis_client
-
 import logging
+from typing import Any, Callable, Optional
+
+from core.redis_client import redis_client
 
 logger = logging.getLogger("cache")
 

@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import uuid
+
 import pika
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL")
