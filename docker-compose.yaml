@@ -85,13 +85,27 @@ services:
     networks:
       - todos_network
 
-  app:
+  app1:
     build: ./app
     volumes:
       - ./app:/app
     restart: on-failure
-    ports:
-      - "8008:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:password@haproxy:5000/postgres
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    networks:
+      - todos_network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      haproxy:
+        condition: service_started
+  
+  app2:
+    build: ./app
+    volumes:
+      - ./app:/app
+    restart: on-failure
     environment:
       DATABASE_URL: postgresql://postgres:password@haproxy:5000/postgres
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/

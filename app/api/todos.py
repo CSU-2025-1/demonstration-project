@@ -1,5 +1,6 @@
 from typing import List
-
+import random
+import asyncio
 from core.auth import get_current_user, require_minimum_role
 from db.database import get_db
 from db.models import User
@@ -24,10 +25,12 @@ def get_todos_service(
 
 
 @router.get("", response_model=List[TodoItem])
-def read_todos(
+async def read_todos(
     service: TodosService = Depends(get_todos_service),
     _: User = Depends(require_minimum_role("user")),
 ):
+
+    await asyncio.sleep(random.uniform(0.1, 1.0))
     return service.get_all()
 
 
@@ -41,11 +44,12 @@ def read_todo(
 
 
 @router.post("", response_model=TodoItem)
-def create_todo(
+async def create_todo(
     todo: TodoCreate,
     service: TodosService = Depends(get_todos_service),
     _: User = Depends(require_minimum_role("user")),
 ):
+    await asyncio.sleep(random.uniform(0.1, 1.0))
     return service.create(todo)
 
 

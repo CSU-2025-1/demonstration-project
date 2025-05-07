@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Сбор метрик самого Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Сбор метрик Nginx через nginx-prometheus-exporter
+  - job_name: 'nginx'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['nginx-exporter:9113']
