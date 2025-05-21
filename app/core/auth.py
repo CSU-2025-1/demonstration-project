@@ -8,6 +8,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from repositories.users import UsersRepository
 from sqlalchemy.orm import Session
+from elasticapm.traces import capture_span
+from elasticapm import set_context
 
 SECRET_KEY = "wk07h2sssdERBmu9RfyBFSr0lAFiyiJb"
 ALGORITHM = "HS256"
@@ -33,12 +35,13 @@ def get_password_hash(password):
 
 def require_minimum_role(min_role: str):
     def checker(user: User = Depends(get_current_user)):
-        if ROLE_PRIORITY.get(user.role, 0) < ROLE_PRIORITY.get(min_role, 0):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied. '{min_role}' role required.",
-            )
-        return user
+        with capture_span("auth:role-decoding", span_type="auth"):
+            if ROLE_PRIORITY.get(user.role, 0) < ROLE_PRIORITY.get(min_role, 0):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied. '{min_role}' role required.",
+                )
+            return user
 
     return checker
 
@@ -59,13 +62,15 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
+        with capture_span("auth:decode-jwt", span_type="auth"):
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id: int = payload.get("sub")
+            if user_id is None:
+                raise credentials_exception
     except JWTError:
         raise credentials_exception
     user = UsersRepository(db).get_by_id(user_id)
     if user is None:
         raise credentials_exception
+
     return user

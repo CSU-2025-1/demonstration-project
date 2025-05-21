@@ -5,6 +5,23 @@ import os
 import pika
 from pymongo import MongoClient
 
+import elasticapm
+from elasticapm import Client
+
+elasticapm.instrument()
+
+
+client = Client(
+    {
+        "SERVICE_NAME": "logger-app",
+        "SERVER_URL": "	https://9ef4f0c366104414ae851b8dca472c54.apm.us-central1.gcp.cloud.es.io:443",
+        "SECRET_TOKEN": "exeEUZZ0koQo75fCQh",
+        "ENVIRONMENT": "development",
+        "LOG_LEVEL": "DEBUG",
+    }
+)
+
+
 RABBITMQ_URL = os.getenv("RABBITMQ_URL")
 MONGO_URL = os.getenv("MONGO_URL")
 
@@ -21,13 +38,19 @@ logger = logging.getLogger("LOGGER")
 
 def callback(ch, method, properties, body):
     event = json.loads(body)
+    trace_header = event.get("apm", {}).get("traceparent")
     logger.info(f"Received event: {event}")
+
+    trace_parent = elasticapm.trace_parent_from_string(trace_header)
+    client.begin_transaction(transaction_type="messaging", trace_parent=trace_parent)
     try:
         events_collection.insert_one(event)
         response = {"status": "success", "event": "todo"}
+        client.end_transaction(name=f"consume:{event['type']}", result="success")
     except Exception as e:
-        logger.error("Failed to insert log: %s", e)
+        logger.exception("Failed to insert log: %s", e)
         response = {"status": "error", "error": str(e)}
+        client.end_transaction(name=f"consume:{event['type']}", result="failure")
 
     # Отправляем ответ обратно в очередь producer'у
     ch.basic_publish(

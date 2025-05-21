@@ -49,7 +49,6 @@ async def create_todo(
     service: TodosService = Depends(get_todos_service),
     _: User = Depends(require_minimum_role("user")),
 ):
-    await asyncio.sleep(random.uniform(0.1, 1.0))
     return service.create(todo)
 
 

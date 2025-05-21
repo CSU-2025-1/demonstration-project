@@ -3,6 +3,7 @@ import logging
 import os
 import uuid
 
+from elasticapm import capture_span, get_trace_parent_header
 import pika
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL")
@@ -14,6 +15,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+@capture_span("send_rpc_event", span_type="messaging", span_subtype="rabbitmq")
 def send_rpc_event(event_type, data):
     connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
     channel = connection.channel()
@@ -29,13 +31,27 @@ def send_rpc_event(event_type, data):
         if corr_id == props.correlation_id:
             response["result"] = json.loads(body)
 
-    channel.basic_consume(queue=callback_queue, on_message_callback=on_response, auto_ack=True)
+    channel.basic_consume(
+        queue=callback_queue, on_message_callback=on_response, auto_ack=True
+    )
+
+    trace_header = get_trace_parent_header()
+    message = {
+        "type": event_type,
+        "data": data,
+    }
+    if trace_header:
+        message["apm"] = {"traceparent": trace_header}
+
+    logger.info(f"Current transaction: {get_trace_parent_header()}")
 
     channel.basic_publish(
         exchange="",
         routing_key="todos_events",
-        properties=pika.BasicProperties(reply_to=callback_queue, correlation_id=corr_id),
-        body=json.dumps({"type": event_type, "data": data}),
+        properties=pika.BasicProperties(
+            reply_to=callback_queue, correlation_id=corr_id
+        ),
+        body=json.dumps(message),
     )
 
     # Ожидаем ответа от consumer'а

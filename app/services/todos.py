@@ -1,3 +1,4 @@
+from core.logger import logger
 from core.producer import send_rpc_event
 from db.models import User
 from repositories.todos import TodosRepository
@@ -20,6 +21,9 @@ class TodosService(BaseService, CachingService):
         # Инвалидация кэша после создания новой задачи
         self.invalidate_cache("todos")
         self.invalidate_cache(f"todo:{new_todo.id}")
+        logger.info(
+            "Todo created", extra={"todo_id": new_todo.id, "user_id": self._user.id}
+        )
         return new_todo
 
     def get(self, id: int) -> TodoItem:
@@ -34,6 +38,12 @@ class TodosService(BaseService, CachingService):
                 raise ValueError(f"Task with ID {id} not found")
 
             send_rpc_event("todo_requested", {"id": todo.id, "title": todo.title})
+
+            logger.info(
+                "Todo retrieved",
+                extra={"todo_id": todo.id, "user_id": self._user.id},
+            )
+
             return todo
 
         return fetch_todo()
